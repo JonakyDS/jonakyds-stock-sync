@@ -118,11 +118,12 @@ class Jonakyds_Stock_Sync_Admin {
                 margin-bottom: 10px;
                 border-left: 4px solid #ccc;
                 background: #f9f9f9;
+                position: relative;
             }
             .jonakyds-log-entry.success {
                 border-left-color: #46b450;
             }
-            .jonakyds-log-entry.error {
+            .jonakyds-log-entry.log-error {
                 border-left-color: #dc3232;
             }
             .jonakyds-log-timestamp {
@@ -239,11 +240,12 @@ class Jonakyds_Stock_Sync_Admin {
                 border-radius: 4px;
                 margin-top: 20px;
                 box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                position: relative;
             }
             .jonakyds-complete-message.show {
                 display: block;
             }
-            .jonakyds-complete-message.error {
+            .jonakyds-complete-message.complete-error {
                 border-left-color: #dc3232;
             }
             .jonakyds-complete-icon {
@@ -474,16 +476,14 @@ class Jonakyds_Stock_Sync_Admin {
                                 if (response.success && response.data.active) {
                                     // Resume the active sync
                                     currentSyncId = response.data.sync_id;
-                                    const $button = $('#jonakyds-sync-now');
-                                    const $progressContainer = $('#jonakyds-progress-container');
-                                    const $completeMessage = $('#jonakyds-complete-message');
-                                    
-                                    isSyncButtonDisabled = true;
-                                    $button.prop('disabled', true).html('<span class="jonakyds-spinner"></span><?php _e('Syncing...', 'jonakyds-stock-sync'); ?>');
-                                    $progressContainer.addClass('active');
-                                    $completeMessage.removeClass('show error');
-                                    
-                                    // Update with current progress
+                    const $button = $('#jonakyds-sync-now');
+                    const $progressContainer = $('#jonakyds-progress-container');
+                    const $completeMessage = $('#jonakyds-complete-message');
+                    
+                    isSyncButtonDisabled = true;
+                    $button.prop('disabled', true).html('<span class="jonakyds-spinner"></span><?php _e('Syncing...', 'jonakyds-stock-sync'); ?>');
+                    $progressContainer.addClass('active');
+                    $completeMessage.removeClass('show complete-error');                                    // Update with current progress
                                     const data = response.data.progress;
                                     updateProgress(data.percent || 0, data.message || '<?php _e('Resuming sync...', 'jonakyds-stock-sync'); ?>');
                                     if (data.updated !== undefined) $('#jonakyds-stat-updated').text(data.updated);
@@ -520,7 +520,7 @@ class Jonakyds_Stock_Sync_Admin {
                         // Reset UI
                         $button.prop('disabled', true).html('<span class="jonakyds-spinner"></span><?php _e('Syncing...', 'jonakyds-stock-sync'); ?>');
                         $progressContainer.addClass('active');
-                        $completeMessage.removeClass('show error');
+                        $completeMessage.removeClass('show complete-error');
                         
                         // Reset progress
                         updateProgress(0, '<?php _e('Initializing...', 'jonakyds-stock-sync'); ?>');
@@ -635,7 +635,7 @@ class Jonakyds_Stock_Sync_Admin {
                         $msg.html('<span class="jonakyds-complete-icon">' + icon + '</span>' + message);
                         $msg.addClass('show');
                         if (!success) {
-                            $msg.addClass('error');
+                            $msg.addClass('complete-error');
                         }
                     }
                 });
@@ -658,7 +658,7 @@ class Jonakyds_Stock_Sync_Admin {
                         <p><?php _e('No sync logs available.', 'jonakyds-stock-sync'); ?></p>
                     <?php else: ?>
                         <?php foreach (array_reverse($logs) as $log): ?>
-                            <div class="jonakyds-log-entry <?php echo $log['success'] ? 'success' : 'error'; ?>">
+                            <div class="jonakyds-log-entry <?php echo $log['success'] ? 'success' : 'log-error'; ?>">
                                 <div class="jonakyds-log-timestamp">
                                     <?php 
                                     $timezone_string = get_option('timezone_string');
