@@ -30,6 +30,22 @@ require_once JONAKYDS_STOCK_SYNC_PLUGIN_DIR . 'includes/class-stock-sync.php';
 require_once JONAKYDS_STOCK_SYNC_PLUGIN_DIR . 'includes/class-sync-handler.php';
 require_once JONAKYDS_STOCK_SYNC_PLUGIN_DIR . 'includes/class-admin.php';
 
+// Initialize auto-update checker
+require_once JONAKYDS_STOCK_SYNC_PLUGIN_DIR . 'lib/plugin-update-checker/plugin-update-checker.php';
+use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
+
+$jonakydsUpdateChecker = PucFactory::buildUpdateChecker(
+    'https://github.com/SourovCodes/jonakyds-stock-sync',
+    __FILE__,
+    'jonakyds-stock-sync'
+);
+
+// Set the branch that contains the stable release (optional, defaults to 'master')
+$jonakydsUpdateChecker->setBranch('main');
+
+// Enable release assets - the plugin will be downloaded from GitHub releases
+$jonakydsUpdateChecker->getVcsApi()->enableReleaseAssets();
+
 /**
  * Initialize the plugin
  */
