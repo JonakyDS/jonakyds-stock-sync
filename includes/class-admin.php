@@ -347,6 +347,7 @@ class Jonakyds_Stock_Sync_Admin {
                                 <?php _e('Sync Schedule', 'jonakyds-stock-sync'); ?>
                             </label>
                             <select id="jonakyds_stock_sync_schedule" name="jonakyds_stock_sync_schedule">
+                                <option value="every_10_minutes" <?php selected($schedule, 'every_10_minutes'); ?>><?php _e('Every 10 Minutes', 'jonakyds-stock-sync'); ?></option>
                                 <option value="hourly" <?php selected($schedule, 'hourly'); ?>><?php _e('Hourly', 'jonakyds-stock-sync'); ?></option>
                                 <option value="twicedaily" <?php selected($schedule, 'twicedaily'); ?>><?php _e('Twice Daily', 'jonakyds-stock-sync'); ?></option>
                                 <option value="daily" <?php selected($schedule, 'daily'); ?>><?php _e('Daily', 'jonakyds-stock-sync'); ?></option>

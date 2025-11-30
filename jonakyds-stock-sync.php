@@ -95,3 +95,15 @@ function jonakyds_stock_sync_deactivate() {
     }
 }
 register_deactivation_hook(__FILE__, 'jonakyds_stock_sync_deactivate');
+
+/**
+ * Add custom cron schedule for 10 minutes
+ */
+function jonakyds_stock_sync_cron_schedules($schedules) {
+    $schedules['every_10_minutes'] = array(
+        'interval' => 600, // 10 minutes in seconds
+        'display' => __('Every 10 Minutes', 'jonakyds-stock-sync')
+    );
+    return $schedules;
+}
+add_filter('cron_schedules', 'jonakyds_stock_sync_cron_schedules');
