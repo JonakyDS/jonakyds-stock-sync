@@ -46,6 +46,9 @@ $jonakydsUpdateChecker->setBranch('main');
 // Enable release assets - the plugin will be downloaded from GitHub releases
 $jonakydsUpdateChecker->getVcsApi()->enableReleaseAssets();
 
+// Add filter to fix directory structure from GitHub ZIP
+add_filter('upgrader_source_selection', 'jonakyds_stock_sync_fix_update_directory', 10, 4);
+
 /**
  * Initialize the plugin
  */
@@ -125,3 +128,32 @@ function jonakyds_stock_sync_cron_schedules($schedules) {
     return $schedules;
 }
 add_filter('cron_schedules', 'jonakyds_stock_sync_cron_schedules');
+
+/**
+ * Fix directory structure from GitHub ZIP
+ * GitHub creates ZIPs with format: repo-name-tag/files
+ * WordPress expects: plugin-slug/files
+ */
+function jonakyds_stock_sync_fix_update_directory($source, $remote_source, $upgrader, $extra) {
+    global $wp_filesystem;
+    
+    // Only apply to our plugin
+    if (!isset($extra['plugin']) || $extra['plugin'] !== 'jonakyds-stock-sync/jonakyds-stock-sync.php') {
+        return $source;
+    }
+    
+    // Get the expected directory name
+    $new_source = trailingslashit($remote_source) . 'jonakyds-stock-sync/';
+    
+    // If directory structure is correct, return as is
+    if ($source === $new_source) {
+        return $source;
+    }
+    
+    // Rename the directory to match expected structure
+    if ($wp_filesystem->move($source, $new_source)) {
+        return $new_source;
+    }
+    
+    return new WP_Error('rename_failed', __('Unable to rename update directory.', 'jonakyds-stock-sync'));
+}
