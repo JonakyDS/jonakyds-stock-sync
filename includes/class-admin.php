@@ -129,8 +129,8 @@ class Jonakyds_Stock_Sync_Admin {
         $csv_url = get_option('jonakyds_stock_sync_csv_url', '');
         $enabled = get_option('jonakyds_stock_sync_enabled', 'no');
         $schedule = get_option('jonakyds_stock_sync_schedule', 'hourly');
-        $sku_column = get_option('jonakyds_stock_sync_sku_column', 'sku');
-        $stock_column = get_option('jonakyds_stock_sync_stock_column', 'stock');
+        $sku_column = get_option('jonakyds_stock_sync_sku_column', 'Artnr');
+        $stock_column = get_option('jonakyds_stock_sync_stock_column', 'Lagerbestand');
         $ssl_verify = get_option('jonakyds_stock_sync_ssl_verify', 'yes');
         $logs = Jonakyds_Stock_Sync::get_logs();
         $next_sync = wp_next_scheduled('jonakyds_stock_sync_cron');
@@ -179,9 +179,9 @@ class Jonakyds_Stock_Sync_Admin {
                                 name="jonakyds_stock_sync_sku_column" 
                                 value="<?php echo esc_attr($sku_column); ?>" 
                                 class="regular-text"
-                                placeholder="sku"
+                                placeholder="Artnr"
                             />
-                            <small><?php _e('The CSV column name that contains the product SKU (case insensitive).', 'jonakyds-stock-sync'); ?></small>
+                            <small><?php _e('The CSV column name that contains the product SKU (case insensitive). Default: Artnr', 'jonakyds-stock-sync'); ?></small>
                         </div>
 
                         <div class="jonakyds-form-row">
@@ -194,9 +194,9 @@ class Jonakyds_Stock_Sync_Admin {
                                 name="jonakyds_stock_sync_stock_column" 
                                 value="<?php echo esc_attr($stock_column); ?>" 
                                 class="regular-text"
-                                placeholder="stock"
+                                placeholder="Lagerbestand"
                             />
-                            <small><?php _e('The CSV column name that contains the stock quantity (case insensitive).', 'jonakyds-stock-sync'); ?></small>
+                            <small><?php _e('The CSV column name that contains the stock quantity (case insensitive). Default: Lagerbestand', 'jonakyds-stock-sync'); ?></small>
                         </div>
 
                         <div class="jonakyds-form-row">

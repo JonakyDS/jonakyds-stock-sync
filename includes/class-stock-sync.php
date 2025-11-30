@@ -19,8 +19,8 @@ class Jonakyds_Stock_Sync {
      */
     public static function sync_stock() {
         $csv_url = get_option('jonakyds_stock_sync_csv_url');
-        $sku_column = get_option('jonakyds_stock_sync_sku_column', 'sku');
-        $stock_column = get_option('jonakyds_stock_sync_stock_column', 'stock');
+        $sku_column = get_option('jonakyds_stock_sync_sku_column', 'Artnr');
+        $stock_column = get_option('jonakyds_stock_sync_stock_column', 'Lagerbestand');
 
         $result = array(
             'success' => false,
@@ -148,22 +148,35 @@ class Jonakyds_Stock_Sync {
             return new WP_Error('invalid_csv', __('Could not parse CSV data.', 'jonakyds-stock-sync'));
         }
 
-        // Get headers from first line
-        $headers = str_getcsv(array_shift($lines));
-        $headers = array_map('trim', $headers);
-        $headers = array_map('strtolower', $headers);
+        // Detect delimiter (comma or semicolon)
+        $first_line = $lines[0];
+        $delimiter = ',';
+        if (strpos($first_line, ';') !== false && strpos($first_line, ',') === false) {
+            $delimiter = ';';
+        }
 
-        // Find column indexes
-        $sku_index = array_search(strtolower($sku_column), $headers);
-        $stock_index = array_search(strtolower($stock_column), $headers);
+        // Get headers from first line
+        $headers = str_getcsv(array_shift($lines), $delimiter);
+        $headers = array_map('trim', $headers);
+        
+        // Store original headers for error message
+        $original_headers = $headers;
+        
+        // Normalize headers for comparison
+        $headers_normalized = array_map('strtolower', $headers);
+
+        // Find column indexes (case insensitive)
+        $sku_index = array_search(strtolower(trim($sku_column)), $headers_normalized);
+        $stock_index = array_search(strtolower(trim($stock_column)), $headers_normalized);
 
         if ($sku_index === false || $stock_index === false) {
             return new WP_Error(
                 'invalid_columns',
                 sprintf(
-                    __('Could not find required columns. Looking for: "%s" and "%s"', 'jonakyds-stock-sync'),
+                    __('Could not find required columns. Looking for: "%s" and "%s". Found headers: %s', 'jonakyds-stock-sync'),
                     $sku_column,
-                    $stock_column
+                    $stock_column,
+                    implode(', ', $original_headers)
                 )
             );
         }
@@ -175,7 +188,7 @@ class Jonakyds_Stock_Sync {
                 continue;
             }
 
-            $row = str_getcsv($line);
+            $row = str_getcsv($line, $delimiter);
             if (isset($row[$sku_index]) && isset($row[$stock_index])) {
                 $parsed_data[] = array(
                     'sku' => trim($row[$sku_index]),
