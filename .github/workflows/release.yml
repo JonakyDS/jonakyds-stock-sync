@@ -9,6 +9,9 @@ on:
       - '.gitignore'
       - '.github/**'
 
+permissions:
+  contents: write
+
 jobs:
   release:
     runs-on: ubuntu-latest
