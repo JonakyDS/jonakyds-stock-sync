@@ -27,7 +27,7 @@ class Jonakyds_Sync_Handler {
         $existing_sync_id = get_option('jonakyds_active_sync_id');
         if ($existing_sync_id) {
             $existing_progress = get_transient('jonakyds_sync_progress_' . $existing_sync_id);
-            if ($existing_progress && $existing_progress['status'] === 'running') {
+            if ($existing_progress && ($existing_progress['status'] === 'running' || $existing_progress['status'] === 'init')) {
                 wp_send_json_error(array(
                     'message' => __('A sync is already in progress. Please wait for it to complete.', 'jonakyds-stock-sync'),
                     'active_sync_id' => $existing_sync_id
