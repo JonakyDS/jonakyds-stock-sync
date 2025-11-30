@@ -1,11 +1,11 @@
 <?php
 /**
  * Plugin Name: Jonakyds Stock Sync
- * Plugin URI: https://github.com/yourusername/jonakyds-stock-sync
+ * Plugin URI: https://github.com/JonakyDS/jonakyds-stock-sync
  * Description: Sync WooCommerce product stock from a CSV URL
  * Version: 1.2.1
- * Author: Your Name
- * Author URI: https://yourwebsite.com
+ * Author: Jonaky Adhikary
+ * Author URI: https://jonakyds.com
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: jonakyds-stock-sync
