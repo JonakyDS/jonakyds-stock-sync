@@ -3,7 +3,7 @@
  * Plugin Name: Jonakyds Stock Sync
  * Plugin URI: https://github.com/yourusername/jonakyds-stock-sync
  * Description: Sync WooCommerce product stock from a CSV URL
- * Version: 1.2.0
+ * Version: 1.2.1
  * Author: Your Name
  * Author URI: https://yourwebsite.com
  * License: GPL v2 or later
@@ -21,7 +21,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('JONAKYDS_STOCK_SYNC_VERSION', '1.2.0');
+define('JONAKYDS_STOCK_SYNC_VERSION', '1.2.1');
 define('JONAKYDS_STOCK_SYNC_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('JONAKYDS_STOCK_SYNC_PLUGIN_URL', plugin_dir_url(__FILE__));
 
