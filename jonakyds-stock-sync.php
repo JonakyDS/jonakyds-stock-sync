@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: Jonakyds Stock Sync
+ * Plugin Name: Stock Sync (JonakyDS)
  * Plugin URI: https://github.com/JonakyDS/jonakyds-stock-sync
  * Description: Sync WooCommerce product stock from a CSV URL
  * Version: 1.2.1
