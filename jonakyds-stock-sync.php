@@ -79,7 +79,8 @@ function jonakyds_stock_sync_activate() {
     
     // Schedule cron job
     if (!wp_next_scheduled('jonakyds_stock_sync_cron')) {
-        wp_schedule_event(time(), 'hourly', 'jonakyds_stock_sync_cron');
+        $schedule = get_option('jonakyds_stock_sync_schedule', 'hourly');
+        wp_schedule_event(time(), $schedule, 'jonakyds_stock_sync_cron');
     }
 }
 register_activation_hook(__FILE__, 'jonakyds_stock_sync_activate');

@@ -291,10 +291,37 @@ class Jonakyds_Stock_Sync {
     }
 }
 
-// Hook for cron job
+// Hook for cron job - use background sync handler for progress tracking
 add_action('jonakyds_stock_sync_cron', function() {
     $enabled = get_option('jonakyds_stock_sync_enabled', 'no');
     if ($enabled === 'yes') {
-        Jonakyds_Stock_Sync::sync_stock();
+        // Check if there's already an active sync
+        $existing_sync_id = get_option('jonakyds_active_sync_id');
+        if ($existing_sync_id) {
+            $existing_progress = get_transient('jonakyds_sync_progress_' . $existing_sync_id);
+            if ($existing_progress && ($existing_progress['status'] === 'running' || $existing_progress['status'] === 'init')) {
+                // Sync already in progress, skip
+                return;
+            }
+        }
+        
+        // Generate unique sync ID for cron sync
+        $sync_id = uniqid('cron_sync_', true);
+        update_option('jonakyds_active_sync_id', $sync_id);
+        
+        // Initialize progress
+        Jonakyds_Sync_Handler::update_progress_public($sync_id, array(
+            'status' => 'running',
+            'step' => 'init',
+            'percent' => 0,
+            'message' => __('Automated sync starting...', 'jonakyds-stock-sync'),
+            'updated' => 0,
+            'skipped' => 0,
+            'total' => 0,
+            'is_cron' => true
+        ));
+        
+        // Run background sync
+        Jonakyds_Sync_Handler::background_sync($sync_id);
     }
 });

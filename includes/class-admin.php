@@ -43,10 +43,31 @@ class Jonakyds_Stock_Sync_Admin {
     public function register_settings() {
         register_setting('jonakyds_stock_sync_settings', 'jonakyds_stock_sync_csv_url');
         register_setting('jonakyds_stock_sync_settings', 'jonakyds_stock_sync_enabled');
-        register_setting('jonakyds_stock_sync_settings', 'jonakyds_stock_sync_schedule');
+        register_setting('jonakyds_stock_sync_settings', 'jonakyds_stock_sync_schedule', array($this, 'reschedule_cron_on_change'));
         register_setting('jonakyds_stock_sync_settings', 'jonakyds_stock_sync_sku_column');
         register_setting('jonakyds_stock_sync_settings', 'jonakyds_stock_sync_stock_column');
         register_setting('jonakyds_stock_sync_settings', 'jonakyds_stock_sync_ssl_verify');
+    }
+
+    /**
+     * Reschedule cron when schedule setting changes
+     */
+    public function reschedule_cron_on_change($new_value) {
+        $old_value = get_option('jonakyds_stock_sync_schedule');
+        
+        // Only reschedule if the value actually changed
+        if ($old_value !== $new_value) {
+            // Clear existing schedule
+            $timestamp = wp_next_scheduled('jonakyds_stock_sync_cron');
+            if ($timestamp) {
+                wp_unschedule_event($timestamp, 'jonakyds_stock_sync_cron');
+            }
+            
+            // Schedule with new interval
+            wp_schedule_event(time(), $new_value, 'jonakyds_stock_sync_cron');
+        }
+        
+        return $new_value;
     }
 
     /**
@@ -355,9 +376,14 @@ class Jonakyds_Stock_Sync_Admin {
                             <?php if ($next_sync): ?>
                                 <small>
                                     <?php 
+                                    $timezone_string = get_option('timezone_string');
+                                    if (empty($timezone_string)) {
+                                        $timezone_string = 'UTC';
+                                    }
                                     printf(
-                                        __('Next scheduled sync: %s', 'jonakyds-stock-sync'),
-                                        date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $next_sync)
+                                        __('Next scheduled sync: %s (%s)', 'jonakyds-stock-sync'),
+                                        date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $next_sync),
+                                        $timezone_string
                                     ); 
                                     ?>
                                 </small>
@@ -412,11 +438,19 @@ class Jonakyds_Stock_Sync_Admin {
                 jQuery(document).ready(function($) {
                     let syncInterval = null;
                     let currentSyncId = null;
+                    let isCheckingSync = false;
+                    let isSyncButtonDisabled = false;
                     
                     // Check for active sync on page load
                     checkActiveSync();
                     
                     function checkActiveSync() {
+                        if (isCheckingSync) {
+                            return; // Already checking, prevent duplicate
+                        }
+                        
+                        isCheckingSync = true;
+                        
                         $.ajax({
                             url: ajaxurl,
                             type: 'POST',
@@ -430,9 +464,12 @@ class Jonakyds_Stock_Sync_Admin {
                                     currentSyncId = response.data.sync_id;
                                     const $button = $('#jonakyds-sync-now');
                                     const $progressContainer = $('#jonakyds-progress-container');
+                                    const $completeMessage = $('#jonakyds-complete-message');
                                     
+                                    isSyncButtonDisabled = true;
                                     $button.prop('disabled', true).html('<span class="jonakyds-spinner"></span><?php _e('Syncing...', 'jonakyds-stock-sync'); ?>');
                                     $progressContainer.addClass('active');
+                                    $completeMessage.removeClass('show error');
                                     
                                     // Update with current progress
                                     const data = response.data.progress;
@@ -443,12 +480,27 @@ class Jonakyds_Stock_Sync_Admin {
                                     
                                     // Start polling
                                     pollProgress();
+                                } else {
+                                    // No active sync
+                                    isSyncButtonDisabled = false;
                                 }
+                                isCheckingSync = false;
+                            },
+                            error: function() {
+                                isCheckingSync = false;
+                                isSyncButtonDisabled = false;
                             }
                         });
                     }
                     
                     $('#jonakyds-sync-now').on('click', function() {
+                        // Prevent multiple clicks
+                        if (isSyncButtonDisabled) {
+                            return false;
+                        }
+                        
+                        isSyncButtonDisabled = true;
+                        
                         const $button = $(this);
                         const $progressContainer = $('#jonakyds-progress-container');
                         const $completeMessage = $('#jonakyds-complete-message');
@@ -486,6 +538,7 @@ class Jonakyds_Stock_Sync_Admin {
                                         showComplete(false, response.data.message || '<?php _e('Failed to start sync', 'jonakyds-stock-sync'); ?>');
                                         $button.prop('disabled', false).html('<?php _e('Sync Now', 'jonakyds-stock-sync'); ?>');
                                         $progressContainer.removeClass('active');
+                                        isSyncButtonDisabled = false;
                                     }
                                 }
                             },
@@ -493,6 +546,7 @@ class Jonakyds_Stock_Sync_Admin {
                                 showComplete(false, '<?php _e('Failed to start sync', 'jonakyds-stock-sync'); ?>');
                                 $button.prop('disabled', false).html('<?php _e('Sync Now', 'jonakyds-stock-sync'); ?>');
                                 $progressContainer.removeClass('active');
+                                isSyncButtonDisabled = false;
                             }
                         });
                     });
@@ -529,6 +583,7 @@ class Jonakyds_Stock_Sync_Admin {
                                             const $button = $('#jonakyds-sync-now');
                                             const $progressContainer = $('#jonakyds-progress-container');
                                             
+                                            isSyncButtonDisabled = false;
                                             $button.prop('disabled', false).html('<?php _e('Sync Now', 'jonakyds-stock-sync'); ?>');
                                             
                                             setTimeout(() => {
@@ -545,6 +600,7 @@ class Jonakyds_Stock_Sync_Admin {
                                             const $button = $('#jonakyds-sync-now');
                                             const $progressContainer = $('#jonakyds-progress-container');
                                             
+                                            isSyncButtonDisabled = false;
                                             $button.prop('disabled', false).html('<?php _e('Sync Now', 'jonakyds-stock-sync'); ?>');
                                             showComplete(false, data.message || '<?php _e('Sync failed', 'jonakyds-stock-sync'); ?>');
                                             $progressContainer.removeClass('active');
@@ -592,7 +648,14 @@ class Jonakyds_Stock_Sync_Admin {
                         <?php foreach (array_reverse($logs) as $log): ?>
                             <div class="jonakyds-log-entry <?php echo $log['success'] ? 'success' : 'error'; ?>">
                                 <div class="jonakyds-log-timestamp">
-                                    <?php echo date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($log['timestamp'])); ?>
+                                    <?php 
+                                    $timezone_string = get_option('timezone_string');
+                                    if (empty($timezone_string)) {
+                                        $timezone_string = 'UTC';
+                                    }
+                                    echo date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($log['timestamp']));
+                                    echo ' (' . $timezone_string . ')';
+                                    ?>
                                 </div>
                                 <div class="jonakyds-log-message">
                                     <strong><?php echo esc_html($log['message']); ?></strong>

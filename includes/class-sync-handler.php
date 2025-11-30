@@ -284,6 +284,13 @@ class Jonakyds_Sync_Handler {
      * Update progress
      */
     private static function update_progress($sync_id, $data) {
+        self::update_progress_public($sync_id, $data);
+    }
+    
+    /**
+     * Public update progress method for cron access
+     */
+    public static function update_progress_public($sync_id, $data) {
         $current = get_transient('jonakyds_sync_progress_' . $sync_id);
         
         if ($current === false) {
@@ -295,7 +302,8 @@ class Jonakyds_Sync_Handler {
                 'updated' => 0,
                 'skipped' => 0,
                 'total' => 0,
-                'processed' => 0
+                'processed' => 0,
+                'is_cron' => false
             );
         }
 
