@@ -412,6 +412,41 @@ class Jonakyds_Stock_Sync_Admin {
                     let syncInterval = null;
                     let currentSyncId = null;
                     
+                    // Check for active sync on page load
+                    checkActiveSync();
+                    
+                    function checkActiveSync() {
+                        $.ajax({
+                            url: ajaxurl,
+                            type: 'POST',
+                            data: {
+                                action: 'jonakyds_get_active_sync',
+                                nonce: '<?php echo wp_create_nonce('jonakyds_ajax_sync'); ?>'
+                            },
+                            success: function(response) {
+                                if (response.success && response.data.active) {
+                                    // Resume the active sync
+                                    currentSyncId = response.data.sync_id;
+                                    const $button = $('#jonakyds-sync-now');
+                                    const $progressContainer = $('#jonakyds-progress-container');
+                                    
+                                    $button.prop('disabled', true).html('<span class="jonakyds-spinner"></span><?php _e('Syncing...', 'jonakyds-stock-sync'); ?>');
+                                    $progressContainer.addClass('active');
+                                    
+                                    // Update with current progress
+                                    const data = response.data.progress;
+                                    updateProgress(data.percent || 0, data.message || '<?php _e('Resuming sync...', 'jonakyds-stock-sync'); ?>');
+                                    if (data.updated !== undefined) $('#jonakyds-stat-updated').text(data.updated);
+                                    if (data.skipped !== undefined) $('#jonakyds-stat-skipped').text(data.skipped);
+                                    if (data.total !== undefined && data.total > 0) $('#jonakyds-stat-total').text(data.total);
+                                    
+                                    // Start polling
+                                    pollProgress();
+                                }
+                            }
+                        });
+                    }
+                    
                     $('#jonakyds-sync-now').on('click', function() {
                         const $button = $(this);
                         const $progressContainer = $('#jonakyds-progress-container');
@@ -442,9 +477,15 @@ class Jonakyds_Stock_Sync_Admin {
                                     // Start polling for progress
                                     pollProgress();
                                 } else {
-                                    showComplete(false, response.data.message || '<?php _e('Failed to start sync', 'jonakyds-stock-sync'); ?>');
-                                    $button.prop('disabled', false).html('<?php _e('Sync Now', 'jonakyds-stock-sync'); ?>');
-                                    $progressContainer.removeClass('active');
+                                    // Check if there's an active sync to resume
+                                    if (response.data && response.data.active_sync_id) {
+                                        currentSyncId = response.data.active_sync_id;
+                                        pollProgress();
+                                    } else {
+                                        showComplete(false, response.data.message || '<?php _e('Failed to start sync', 'jonakyds-stock-sync'); ?>');
+                                        $button.prop('disabled', false).html('<?php _e('Sync Now', 'jonakyds-stock-sync'); ?>');
+                                        $progressContainer.removeClass('active');
+                                    }
                                 }
                             },
                             error: function() {
