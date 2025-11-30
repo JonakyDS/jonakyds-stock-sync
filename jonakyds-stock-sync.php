@@ -27,6 +27,7 @@ define('JONAKYDS_STOCK_SYNC_PLUGIN_URL', plugin_dir_url(__FILE__));
 
 // Include required files
 require_once JONAKYDS_STOCK_SYNC_PLUGIN_DIR . 'includes/class-stock-sync.php';
+require_once JONAKYDS_STOCK_SYNC_PLUGIN_DIR . 'includes/class-sync-handler.php';
 require_once JONAKYDS_STOCK_SYNC_PLUGIN_DIR . 'includes/class-admin.php';
 
 /**

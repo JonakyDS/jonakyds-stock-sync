@@ -114,6 +114,121 @@ class Jonakyds_Stock_Sync_Admin {
                 font-size: 13px;
                 color: #dc3232;
             }
+            
+            /* Modern Progress UI */
+            .jonakyds-progress-container {
+                display: none;
+                margin: 20px 0;
+                padding: 30px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                border-radius: 12px;
+                box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+                color: white;
+            }
+            .jonakyds-progress-container.active {
+                display: block;
+            }
+            .jonakyds-progress-title {
+                font-size: 20px;
+                font-weight: 600;
+                margin-bottom: 10px;
+                text-align: center;
+            }
+            .jonakyds-progress-message {
+                text-align: center;
+                margin-bottom: 20px;
+                font-size: 14px;
+                opacity: 0.9;
+            }
+            .jonakyds-progress-bar-container {
+                background: rgba(255, 255, 255, 0.2);
+                border-radius: 50px;
+                height: 30px;
+                overflow: hidden;
+                margin-bottom: 15px;
+                position: relative;
+            }
+            .jonakyds-progress-bar {
+                height: 100%;
+                background: linear-gradient(90deg, #4ade80 0%, #22c55e 100%);
+                border-radius: 50px;
+                transition: width 0.3s ease;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: 600;
+                font-size: 13px;
+                box-shadow: 0 2px 10px rgba(34, 197, 94, 0.4);
+            }
+            .jonakyds-progress-stats {
+                display: flex;
+                justify-content: space-around;
+                margin-top: 20px;
+                flex-wrap: wrap;
+                gap: 15px;
+            }
+            .jonakyds-progress-stat {
+                background: rgba(255, 255, 255, 0.15);
+                padding: 15px 25px;
+                border-radius: 8px;
+                text-align: center;
+                backdrop-filter: blur(10px);
+                flex: 1;
+                min-width: 120px;
+            }
+            .jonakyds-progress-stat-value {
+                font-size: 28px;
+                font-weight: 700;
+                display: block;
+                margin-bottom: 5px;
+            }
+            .jonakyds-progress-stat-label {
+                font-size: 12px;
+                opacity: 0.9;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+            .jonakyds-sync-button {
+                position: relative;
+                overflow: hidden;
+            }
+            .jonakyds-sync-button:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
+            .jonakyds-spinner {
+                display: inline-block;
+                width: 16px;
+                height: 16px;
+                border: 2px solid rgba(255,255,255,0.3);
+                border-top-color: white;
+                border-radius: 50%;
+                animation: spin 0.8s linear infinite;
+                margin-right: 8px;
+                vertical-align: middle;
+            }
+            @keyframes spin {
+                to { transform: rotate(360deg); }
+            }
+            .jonakyds-complete-message {
+                display: none;
+                padding: 20px;
+                background: #fff;
+                border-left: 4px solid #46b450;
+                border-radius: 4px;
+                margin-top: 20px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            }
+            .jonakyds-complete-message.show {
+                display: block;
+            }
+            .jonakyds-complete-message.error {
+                border-left-color: #dc3232;
+            }
+            .jonakyds-complete-icon {
+                font-size: 24px;
+                margin-right: 10px;
+            }
         ');
     }
 
@@ -255,13 +370,166 @@ class Jonakyds_Stock_Sync_Admin {
                 <!-- Manual Sync Card -->
                 <div class="jonakyds-card">
                     <h2><?php _e('Manual Sync', 'jonakyds-stock-sync'); ?></h2>
-                    <p><?php _e('Click the button below to sync stock immediately.', 'jonakyds-stock-sync'); ?></p>
-                    <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
-                        <input type="hidden" name="action" value="jonakyds_sync_now" />
-                        <?php wp_nonce_field('jonakyds_sync_now'); ?>
-                        <?php submit_button(__('Sync Now', 'jonakyds-stock-sync'), 'primary', 'submit', false); ?>
-                    </form>
+                    <p><?php _e('Click the button below to sync stock immediately with real-time progress.', 'jonakyds-stock-sync'); ?></p>
+                    
+                    <button type="button" id="jonakyds-sync-now" class="button button-primary button-hero jonakyds-sync-button">
+                        <?php _e('Sync Now', 'jonakyds-stock-sync'); ?>
+                    </button>
+
+                    <!-- Progress Container -->
+                    <div id="jonakyds-progress-container" class="jonakyds-progress-container">
+                        <div class="jonakyds-progress-title"><?php _e('Syncing Stock...', 'jonakyds-stock-sync'); ?></div>
+                        <div id="jonakyds-progress-message" class="jonakyds-progress-message">
+                            <?php _e('Initializing...', 'jonakyds-stock-sync'); ?>
+                        </div>
+                        <div class="jonakyds-progress-bar-container">
+                            <div id="jonakyds-progress-bar" class="jonakyds-progress-bar" style="width: 0%;">
+                                <span id="jonakyds-progress-percent">0%</span>
+                            </div>
+                        </div>
+                        <div class="jonakyds-progress-stats">
+                            <div class="jonakyds-progress-stat">
+                                <span id="jonakyds-stat-updated" class="jonakyds-progress-stat-value">0</span>
+                                <span class="jonakyds-progress-stat-label"><?php _e('Updated', 'jonakyds-stock-sync'); ?></span>
+                            </div>
+                            <div class="jonakyds-progress-stat">
+                                <span id="jonakyds-stat-skipped" class="jonakyds-progress-stat-value">0</span>
+                                <span class="jonakyds-progress-stat-label"><?php _e('Skipped', 'jonakyds-stock-sync'); ?></span>
+                            </div>
+                            <div class="jonakyds-progress-stat">
+                                <span id="jonakyds-stat-total" class="jonakyds-progress-stat-value">-</span>
+                                <span class="jonakyds-progress-stat-label"><?php _e('Total', 'jonakyds-stock-sync'); ?></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Completion Message -->
+                    <div id="jonakyds-complete-message" class="jonakyds-complete-message"></div>
                 </div>
+
+                <script>
+                jQuery(document).ready(function($) {
+                    let syncInterval = null;
+                    let currentSyncId = null;
+                    
+                    $('#jonakyds-sync-now').on('click', function() {
+                        const $button = $(this);
+                        const $progressContainer = $('#jonakyds-progress-container');
+                        const $completeMessage = $('#jonakyds-complete-message');
+                        
+                        // Reset UI
+                        $button.prop('disabled', true).html('<span class="jonakyds-spinner"></span><?php _e('Syncing...', 'jonakyds-stock-sync'); ?>');
+                        $progressContainer.addClass('active');
+                        $completeMessage.removeClass('show error');
+                        
+                        // Reset progress
+                        updateProgress(0, '<?php _e('Initializing...', 'jonakyds-stock-sync'); ?>');
+                        $('#jonakyds-stat-updated').text('0');
+                        $('#jonakyds-stat-skipped').text('0');
+                        $('#jonakyds-stat-total').text('-');
+                        
+                        // Start sync
+                        $.ajax({
+                            url: ajaxurl,
+                            type: 'POST',
+                            data: {
+                                action: 'jonakyds_start_sync',
+                                nonce: '<?php echo wp_create_nonce('jonakyds_ajax_sync'); ?>'
+                            },
+                            success: function(response) {
+                                if (response.success) {
+                                    currentSyncId = response.data.sync_id;
+                                    // Start polling for progress
+                                    pollProgress();
+                                } else {
+                                    showComplete(false, response.data.message || '<?php _e('Failed to start sync', 'jonakyds-stock-sync'); ?>');
+                                    $button.prop('disabled', false).html('<?php _e('Sync Now', 'jonakyds-stock-sync'); ?>');
+                                    $progressContainer.removeClass('active');
+                                }
+                            },
+                            error: function() {
+                                showComplete(false, '<?php _e('Failed to start sync', 'jonakyds-stock-sync'); ?>');
+                                $button.prop('disabled', false).html('<?php _e('Sync Now', 'jonakyds-stock-sync'); ?>');
+                                $progressContainer.removeClass('active');
+                            }
+                        });
+                    });
+                    
+                    function pollProgress() {
+                        syncInterval = setInterval(function() {
+                            $.ajax({
+                                url: ajaxurl,
+                                type: 'POST',
+                                data: {
+                                    action: 'jonakyds_get_progress',
+                                    nonce: '<?php echo wp_create_nonce('jonakyds_ajax_sync'); ?>',
+                                    sync_id: currentSyncId
+                                },
+                                success: function(response) {
+                                    if (response.success) {
+                                        const data = response.data;
+                                        
+                                        updateProgress(data.percent, data.message);
+                                        
+                                        if (data.updated !== undefined) {
+                                            $('#jonakyds-stat-updated').text(data.updated);
+                                        }
+                                        if (data.skipped !== undefined) {
+                                            $('#jonakyds-stat-skipped').text(data.skipped);
+                                        }
+                                        if (data.total !== undefined && data.total > 0) {
+                                            $('#jonakyds-stat-total').text(data.total);
+                                        }
+                                        
+                                        // Check if complete
+                                        if (data.status === 'complete') {
+                                            clearInterval(syncInterval);
+                                            const $button = $('#jonakyds-sync-now');
+                                            const $progressContainer = $('#jonakyds-progress-container');
+                                            
+                                            $button.prop('disabled', false).html('<?php _e('Sync Now', 'jonakyds-stock-sync'); ?>');
+                                            
+                                            setTimeout(() => {
+                                                showComplete(true, data.message);
+                                                $progressContainer.removeClass('active');
+                                                
+                                                // Reload logs after 2 seconds
+                                                setTimeout(() => {
+                                                    location.reload();
+                                                }, 2000);
+                                            }, 500);
+                                        } else if (data.status === 'error') {
+                                            clearInterval(syncInterval);
+                                            const $button = $('#jonakyds-sync-now');
+                                            const $progressContainer = $('#jonakyds-progress-container');
+                                            
+                                            $button.prop('disabled', false).html('<?php _e('Sync Now', 'jonakyds-stock-sync'); ?>');
+                                            showComplete(false, data.message || '<?php _e('Sync failed', 'jonakyds-stock-sync'); ?>');
+                                            $progressContainer.removeClass('active');
+                                        }
+                                    }
+                                }
+                            });
+                        }, 1000); // Poll every 1 second
+                    }
+                    
+                    function updateProgress(percent, message) {
+                        $('#jonakyds-progress-bar').css('width', percent + '%');
+                        $('#jonakyds-progress-percent').text(percent + '%');
+                        $('#jonakyds-progress-message').text(message);
+                    }
+                    
+                    function showComplete(success, message) {
+                        const $msg = $('#jonakyds-complete-message');
+                        const icon = success ? '✓' : '✗';
+                        $msg.html('<span class="jonakyds-complete-icon">' + icon + '</span>' + message);
+                        $msg.addClass('show');
+                        if (!success) {
+                            $msg.addClass('error');
+                        }
+                    }
+                });
+                </script>
 
                 <!-- Sync Logs Card -->
                 <div class="jonakyds-card">

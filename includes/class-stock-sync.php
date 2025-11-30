@@ -125,7 +125,7 @@ class Jonakyds_Stock_Sync {
      * @param string $url CSV URL
      * @return string|WP_Error CSV content or error
      */
-    private static function fetch_csv($url) {
+    public static function fetch_csv($url) {
         $ssl_verify = get_option('jonakyds_stock_sync_ssl_verify', 'yes');
         
         $response = wp_remote_get($url, array(
@@ -161,7 +161,7 @@ class Jonakyds_Stock_Sync {
      * @param string $stock_column Name of stock column
      * @return array|WP_Error Parsed data or error
      */
-    private static function parse_csv($csv_content, $sku_column, $stock_column) {
+    public static function parse_csv($csv_content, $sku_column, $stock_column) {
         $lines = str_getcsv($csv_content, "\n");
         if (empty($lines)) {
             return new WP_Error('invalid_csv', __('Could not parse CSV data.', 'jonakyds-stock-sync'));
@@ -228,7 +228,7 @@ class Jonakyds_Stock_Sync {
      *
      * @param array $result Sync result
      */
-    private static function log_sync($result) {
+    public static function log_sync($result) {
         $logs = get_option('jonakyds_stock_sync_logs', array());
         
         // Keep only last 10 logs
@@ -253,7 +253,7 @@ class Jonakyds_Stock_Sync {
      *
      * @return array Map of SKU => product_id
      */
-    private static function build_products_map() {
+    public static function build_products_map() {
         global $wpdb;
         
         $products_map = array();
