@@ -451,6 +451,11 @@ class Jonakyds_Stock_Sync_Admin {
                     // Check for active sync on page load
                     checkActiveSync();
                     
+                    // Check for active sync every 30 seconds
+                    setInterval(function() {
+                        checkActiveSync();
+                    }, 30000);
+                    
                     function checkActiveSync() {
                         if (isCheckingSync) {
                             return; // Already checking, prevent duplicate
