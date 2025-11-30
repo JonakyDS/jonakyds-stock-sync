@@ -18,6 +18,10 @@ class Jonakyds_Stock_Sync {
      * @return array Result of the sync operation
      */
     public static function sync_stock() {
+        // Increase time limit and memory for large syncs
+        @set_time_limit(0);
+        @ini_set('memory_limit', '512M');
+        
         $csv_url = get_option('jonakyds_stock_sync_csv_url');
         $sku_column = get_option('jonakyds_stock_sync_sku_column', 'Artnr');
         $stock_column = get_option('jonakyds_stock_sync_stock_column', 'Lagerbestand');
@@ -50,42 +54,57 @@ class Jonakyds_Stock_Sync {
             return $result;
         }
 
-        // Update stock quantities
-        foreach ($parsed_data as $item) {
-            $sku = sanitize_text_field($item['sku']);
-            $stock_qty = intval($item['stock']);
+        // Disable object cache to prevent memory issues with large datasets
+        wp_suspend_cache_addition(true);
+        
+        // Pre-load all products with SKUs for faster lookup
+        $products_map = self::build_products_map();
+        
+        // Update stock quantities in batches
+        $batch_size = 100;
+        $batches = array_chunk($parsed_data, $batch_size);
+        
+        foreach ($batches as $batch) {
+            foreach ($batch as $item) {
+                $sku = sanitize_text_field($item['sku']);
+                $stock_qty = intval($item['stock']);
 
-            // Find product by SKU
-            $product_id = wc_get_product_id_by_sku($sku);
+                // Find product by SKU from pre-loaded map
+                if (!isset($products_map[$sku])) {
+                    $result['skipped']++;
+                    continue; // Skip silently - SKU not found in this site
+                }
+                
+                $product_id = $products_map[$sku];
 
-            if (!$product_id) {
-                $result['skipped']++;
-                $result['errors'][] = sprintf(__('Product with SKU "%s" not found.', 'jonakyds-stock-sync'), $sku);
-                continue;
+                // Get product
+                $product = wc_get_product($product_id);
+                if (!$product) {
+                    $result['skipped']++;
+                    continue;
+                }
+
+                // Update stock quantity
+                $product->set_stock_quantity($stock_qty);
+                
+                // Set stock status based on quantity
+                if ($stock_qty > 0) {
+                    $product->set_stock_status('instock');
+                } else {
+                    $product->set_stock_status('outofstock');
+                }
+
+                // Save product
+                $product->save();
+                $result['updated']++;
             }
-
-            // Get product
-            $product = wc_get_product($product_id);
-            if (!$product) {
-                $result['skipped']++;
-                $result['errors'][] = sprintf(__('Could not load product with SKU "%s".', 'jonakyds-stock-sync'), $sku);
-                continue;
-            }
-
-            // Update stock quantity
-            $product->set_stock_quantity($stock_qty);
             
-            // Set stock status based on quantity
-            if ($stock_qty > 0) {
-                $product->set_stock_status('instock');
-            } else {
-                $product->set_stock_status('outofstock');
-            }
-
-            // Save product
-            $product->save();
-            $result['updated']++;
+            // Clear product cache between batches
+            wp_cache_flush();
         }
+        
+        // Re-enable cache
+        wp_suspend_cache_addition(false);
 
         $result['success'] = true;
         $result['message'] = sprintf(
@@ -223,12 +242,38 @@ class Jonakyds_Stock_Sync {
             'message' => $result['message'],
             'updated' => $result['updated'],
             'skipped' => $result['skipped'],
-            'errors' => $result['errors']
+            'errors' => array() // Don't log individual errors to save space
         );
 
         update_option('jonakyds_stock_sync_logs', $logs);
     }
 
+    /**
+     * Build a map of SKU to product ID for faster lookups
+     *
+     * @return array Map of SKU => product_id
+     */
+    private static function build_products_map() {
+        global $wpdb;
+        
+        $products_map = array();
+        
+        // Query all product SKUs directly from database for performance
+        $results = $wpdb->get_results(
+            "SELECT post_id, meta_value as sku 
+            FROM {$wpdb->postmeta} 
+            WHERE meta_key = '_sku' 
+            AND meta_value != ''",
+            ARRAY_A
+        );
+        
+        foreach ($results as $row) {
+            $products_map[$row['sku']] = $row['post_id'];
+        }
+        
+        return $products_map;
+    }
+    
     /**
      * Get sync logs
      *
