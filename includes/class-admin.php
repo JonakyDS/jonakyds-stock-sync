@@ -380,11 +380,18 @@ class Jonakyds_Stock_Sync_Admin {
                                     if (empty($timezone_string)) {
                                         $timezone_string = 'UTC';
                                     }
-                                    printf(
-                                        __('Next scheduled sync: %s (%s)', 'jonakyds-stock-sync'),
-                                        date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $next_sync),
-                                        $timezone_string
-                                    ); 
+                                    
+                                    // Check if next sync is in the past (shouldn't happen, but just in case)
+                                    $current_time = current_time('timestamp');
+                                    if ($next_sync < $current_time) {
+                                        _e('Waiting for WordPress cron to run...', 'jonakyds-stock-sync');
+                                    } else {
+                                        printf(
+                                            __('Next scheduled sync: %s (%s)', 'jonakyds-stock-sync'),
+                                            date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $next_sync),
+                                            $timezone_string
+                                        );
+                                    }
                                     ?>
                                 </small>
                             <?php endif; ?>
