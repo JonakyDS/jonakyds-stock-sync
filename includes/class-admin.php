@@ -63,8 +63,8 @@ class Jonakyds_Stock_Sync_Admin {
                 wp_unschedule_event($timestamp, 'jonakyds_stock_sync_cron');
             }
             
-            // Schedule with new interval
-            wp_schedule_event(time(), $new_value, 'jonakyds_stock_sync_cron');
+            // Schedule for 5 minutes after interval change
+            wp_schedule_event(time() + 300, $new_value, 'jonakyds_stock_sync_cron');
         }
         
         return $new_value;
