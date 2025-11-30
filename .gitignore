@@ -21,3 +21,6 @@ node_modules/
 # Composer (if you add dependencies)
 /vendor/
 composer.lock
+
+# Plugin zip
+*.zip
