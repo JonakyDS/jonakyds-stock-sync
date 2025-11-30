@@ -300,7 +300,15 @@ add_action('jonakyds_stock_sync_cron', function() {
         if ($existing_sync_id) {
             $existing_progress = get_transient('jonakyds_sync_progress_' . $existing_sync_id);
             if ($existing_progress && ($existing_progress['status'] === 'running' || $existing_progress['status'] === 'init')) {
-                // Sync already in progress, skip
+                // Sync already in progress, skip and log it
+                $result = array(
+                    'success' => false,
+                    'message' => __('Scheduled sync skipped - another sync is already in progress', 'jonakyds-stock-sync'),
+                    'updated' => 0,
+                    'skipped' => 0,
+                    'errors' => array()
+                );
+                Jonakyds_Stock_Sync::log_sync($result);
                 return;
             }
         }
