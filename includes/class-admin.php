@@ -381,9 +381,9 @@ class Jonakyds_Stock_Sync_Admin {
                                         $timezone_string = 'UTC';
                                     }
                                     
-                                    // Check if next sync is in the past (shouldn't happen, but just in case)
-                                    $current_time = current_time('timestamp');
-                                    if ($next_sync < $current_time) {
+                                    // Check if next sync is in the past
+                                    // wp_next_scheduled() returns GMT timestamp, so compare with time() not current_time()
+                                    if ($next_sync < time()) {
                                         _e('Waiting for WordPress cron to run...', 'jonakyds-stock-sync');
                                     } else {
                                         printf(
