@@ -46,6 +46,7 @@ class Jonakyds_Stock_Sync_Admin {
         register_setting('jonakyds_stock_sync_settings', 'jonakyds_stock_sync_schedule');
         register_setting('jonakyds_stock_sync_settings', 'jonakyds_stock_sync_sku_column');
         register_setting('jonakyds_stock_sync_settings', 'jonakyds_stock_sync_stock_column');
+        register_setting('jonakyds_stock_sync_settings', 'jonakyds_stock_sync_ssl_verify');
     }
 
     /**
@@ -130,6 +131,7 @@ class Jonakyds_Stock_Sync_Admin {
         $schedule = get_option('jonakyds_stock_sync_schedule', 'hourly');
         $sku_column = get_option('jonakyds_stock_sync_sku_column', 'sku');
         $stock_column = get_option('jonakyds_stock_sync_stock_column', 'stock');
+        $ssl_verify = get_option('jonakyds_stock_sync_ssl_verify', 'yes');
         $logs = Jonakyds_Stock_Sync::get_logs();
         $next_sync = wp_next_scheduled('jonakyds_stock_sync_cron');
 
@@ -138,6 +140,12 @@ class Jonakyds_Stock_Sync_Admin {
             <h1><?php _e('Stock Sync Settings', 'jonakyds-stock-sync'); ?></h1>
             
             <?php settings_errors(); ?>
+
+            <?php if (isset($_GET['sync_result'])): ?>
+                <div class="notice notice-<?php echo $_GET['sync_result'] === 'success' ? 'success' : 'error'; ?> is-dismissible">
+                    <p><?php echo esc_html(urldecode($_GET['sync_message'])); ?></p>
+                </div>
+            <?php endif; ?>
 
             <div class="jonakyds-sync-container">
                 <!-- Settings Card -->
@@ -189,6 +197,20 @@ class Jonakyds_Stock_Sync_Admin {
                                 placeholder="stock"
                             />
                             <small><?php _e('The CSV column name that contains the stock quantity (case insensitive).', 'jonakyds-stock-sync'); ?></small>
+                        </div>
+
+                        <div class="jonakyds-form-row">
+                            <label for="jonakyds_stock_sync_ssl_verify">
+                                <input 
+                                    type="checkbox" 
+                                    id="jonakyds_stock_sync_ssl_verify" 
+                                    name="jonakyds_stock_sync_ssl_verify" 
+                                    value="yes"
+                                    <?php checked($ssl_verify, 'yes'); ?>
+                                />
+                                <?php _e('Verify SSL certificate', 'jonakyds-stock-sync'); ?>
+                            </label>
+                            <small><?php _e('Disable this if you get SSL certificate errors (not recommended for production).', 'jonakyds-stock-sync'); ?></small>
                         </div>
 
                         <div class="jonakyds-form-row">

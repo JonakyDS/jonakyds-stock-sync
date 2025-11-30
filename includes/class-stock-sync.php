@@ -107,9 +107,11 @@ class Jonakyds_Stock_Sync {
      * @return string|WP_Error CSV content or error
      */
     private static function fetch_csv($url) {
+        $ssl_verify = get_option('jonakyds_stock_sync_ssl_verify', 'yes');
+        
         $response = wp_remote_get($url, array(
             'timeout' => 30,
-            'sslverify' => true
+            'sslverify' => ($ssl_verify === 'yes')
         ));
 
         if (is_wp_error($response)) {
