@@ -39,13 +39,17 @@ jobs:
       - name: Create plugin zip
         if: steps.check_release.outputs.exists == 'false'
         run: |
-          mkdir -p dist
-          zip -r dist/jonakyds-stock-sync.zip . \
-            -x "*.git*" \
-            -x "dist/*" \
-            -x "node_modules/*" \
-            -x ".DS_Store" \
-            -x "*.log"
+          mkdir -p dist/jonakyds-stock-sync
+          rsync -av --exclude='.git' \
+            --exclude='dist' \
+            --exclude='node_modules' \
+            --exclude='.DS_Store' \
+            --exclude='*.log' \
+            --exclude='.github' \
+            ./ dist/jonakyds-stock-sync/
+          cd dist
+          zip -r jonakyds-stock-sync-v${{ steps.get_version.outputs.version }}.zip jonakyds-stock-sync
+          cd ..
 
       - name: Create Release
         if: steps.check_release.outputs.exists == 'false'
@@ -59,14 +63,14 @@ jobs:
             Download the plugin zip file below and install it in your WordPress site.
             
             ### Installation
-            1. Download `jonakyds-stock-sync.zip`
+            1. Download `jonakyds-stock-sync-v${{ steps.get_version.outputs.version }}.zip`
             2. Go to WordPress Admin > Plugins > Add New > Upload Plugin
             3. Upload the zip file and activate
             4. Configure at WooCommerce > Stock Sync
             
             ### Changes
             See the [changelog](https://github.com/${{ github.repository }}/commits/main) for details.
-          files: dist/jonakyds-stock-sync.zip
+          files: dist/jonakyds-stock-sync-v${{ steps.get_version.outputs.version }}.zip
           draft: false
           prerelease: false
         env:
