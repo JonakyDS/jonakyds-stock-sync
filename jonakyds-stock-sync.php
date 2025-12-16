@@ -3,7 +3,7 @@
  * Plugin Name: Stock Sync (JonakyDS)
  * Plugin URI: https://github.com/JonakyDS/jonakyds-stock-sync
  * Description: Sync WooCommerce product stock from a CSV URL
- * Version: 1.2.5
+ * Version: 1.2.6
  * Author: Jonaky Adhikary
  * Author URI: https://jonakyds.com
  * License: GPL v2 or later
@@ -21,7 +21,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('JONAKYDS_STOCK_SYNC_VERSION', '1.2.5');
+define('JONAKYDS_STOCK_SYNC_VERSION', '1.2.6');
 define('JONAKYDS_STOCK_SYNC_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('JONAKYDS_STOCK_SYNC_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -29,6 +29,7 @@ define('JONAKYDS_STOCK_SYNC_PLUGIN_URL', plugin_dir_url(__FILE__));
 require_once JONAKYDS_STOCK_SYNC_PLUGIN_DIR . 'includes/class-stock-sync.php';
 require_once JONAKYDS_STOCK_SYNC_PLUGIN_DIR . 'includes/class-sync-handler.php';
 require_once JONAKYDS_STOCK_SYNC_PLUGIN_DIR . 'includes/class-admin.php';
+require_once JONAKYDS_STOCK_SYNC_PLUGIN_DIR . 'includes/class-updater.php';
 
 /**
  * Initialize the plugin
@@ -42,6 +43,11 @@ function jonakyds_stock_sync_init() {
 
     // Initialize admin interface
     new Jonakyds_Stock_Sync_Admin();
+    
+    // Initialize updater
+    if (is_admin()) {
+        new Jonakyds_Stock_Sync_Updater(__FILE__);
+    }
 }
 add_action('plugins_loaded', 'jonakyds_stock_sync_init');
 
