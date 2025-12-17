@@ -3,7 +3,7 @@
  * Plugin Name: Stock Sync (JonakyDS)
  * Plugin URI: https://github.com/JonakyDS/jonakyds-stock-sync
  * Description: Sync WooCommerce product stock from a CSV URL
- * Version: 1.3.1
+ * Version: 1.3.2
  * Author: Jonaky Adhikary
  * Author URI: https://jonakyds.com
  * License: GPL v2 or later
@@ -21,7 +21,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('JONAKYDS_STOCK_SYNC_VERSION', '1.3.1');
+define('JONAKYDS_STOCK_SYNC_VERSION', '1.3.2');
 define('JONAKYDS_STOCK_SYNC_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('JONAKYDS_STOCK_SYNC_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -108,7 +108,7 @@ register_deactivation_hook(__FILE__, 'jonakyds_stock_sync_deactivate');
  * Add custom cron schedule for 10 minutes
  */
 function jonakyds_stock_sync_cron_schedules($schedules) {
-    $schedules['every_10_minutes'] = array(
+    $schedules['jonakyds_stock_every_10_minutes'] = array(
         'interval' => 600, // 10 minutes in seconds
         'display' => __('Every 10 Minutes', 'jonakyds-stock-sync')
     );

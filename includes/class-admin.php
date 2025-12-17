@@ -370,7 +370,7 @@ class Jonakyds_Stock_Sync_Admin {
                                 <?php _e('Sync Schedule', 'jonakyds-stock-sync'); ?>
                             </label>
                             <select id="jonakyds_stock_sync_schedule" name="jonakyds_stock_sync_schedule">
-                                <option value="every_10_minutes" <?php selected($schedule, 'every_10_minutes'); ?>><?php _e('Every 10 Minutes', 'jonakyds-stock-sync'); ?></option>
+                                <option value="jonakyds_stock_every_10_minutes" <?php selected($schedule, 'jonakyds_stock_every_10_minutes'); ?>><?php _e('Every 10 Minutes', 'jonakyds-stock-sync'); ?></option>
                                 <option value="hourly" <?php selected($schedule, 'hourly'); ?>><?php _e('Hourly', 'jonakyds-stock-sync'); ?></option>
                                 <option value="twicedaily" <?php selected($schedule, 'twicedaily'); ?>><?php _e('Twice Daily', 'jonakyds-stock-sync'); ?></option>
                                 <option value="daily" <?php selected($schedule, 'daily'); ?>><?php _e('Daily', 'jonakyds-stock-sync'); ?></option>
@@ -469,8 +469,8 @@ class Jonakyds_Stock_Sync_Admin {
                             url: ajaxurl,
                             type: 'POST',
                             data: {
-                                action: 'jonakyds_get_active_sync',
-                                nonce: '<?php echo wp_create_nonce('jonakyds_ajax_sync'); ?>'
+                                action: 'jonakyds_stock_get_active_sync',
+                                nonce: '<?php echo wp_create_nonce('jonakyds_stock_ajax_sync'); ?>'
                             },
                             success: function(response) {
                                 if (response.success && response.data.active) {
@@ -533,8 +533,8 @@ class Jonakyds_Stock_Sync_Admin {
                             url: ajaxurl,
                             type: 'POST',
                             data: {
-                                action: 'jonakyds_start_sync',
-                                nonce: '<?php echo wp_create_nonce('jonakyds_ajax_sync'); ?>'
+                                action: 'jonakyds_stock_start_sync',
+                                nonce: '<?php echo wp_create_nonce('jonakyds_stock_ajax_sync'); ?>'
                             },
                             success: function(response) {
                                 if (response.success) {
@@ -569,8 +569,8 @@ class Jonakyds_Stock_Sync_Admin {
                                 url: ajaxurl,
                                 type: 'POST',
                                 data: {
-                                    action: 'jonakyds_get_progress',
-                                    nonce: '<?php echo wp_create_nonce('jonakyds_ajax_sync'); ?>',
+                                    action: 'jonakyds_stock_get_sync_progress',
+                                    nonce: '<?php echo wp_create_nonce('jonakyds_stock_ajax_sync'); ?>',
                                     sync_id: currentSyncId
                                 },
                                 success: function(response) {

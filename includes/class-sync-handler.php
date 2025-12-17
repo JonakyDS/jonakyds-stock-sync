@@ -17,16 +17,16 @@ class Jonakyds_Sync_Handler {
      */
     public static function start_sync() {
         // Security check
-        check_ajax_referer('jonakyds_ajax_sync', 'nonce');
+        check_ajax_referer('jonakyds_stock_ajax_sync', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
             wp_send_json_error(array('message' => __('Unauthorized', 'jonakyds-stock-sync')));
         }
 
         // Check if there's already an active sync
-        $existing_sync_id = get_option('jonakyds_active_sync_id');
+        $existing_sync_id = get_option('jonakyds_stock_active_sync_id');
         if ($existing_sync_id) {
-            $existing_progress = get_transient('jonakyds_sync_progress_' . $existing_sync_id);
+            $existing_progress = get_transient('jonakyds_stock_sync_progress_' . $existing_sync_id);
             if ($existing_progress && ($existing_progress['status'] === 'running' || $existing_progress['status'] === 'init')) {
                 wp_send_json_error(array(
                     'message' => __('A sync is already in progress. Please wait for it to complete.', 'jonakyds-stock-sync'),
@@ -40,7 +40,7 @@ class Jonakyds_Sync_Handler {
         $sync_id = uniqid('sync_', true);
         
         // Store as active sync
-        update_option('jonakyds_active_sync_id', $sync_id);
+        update_option('jonakyds_stock_active_sync_id', $sync_id);
         
         // Initialize progress
         self::update_progress($sync_id, array(
@@ -54,7 +54,7 @@ class Jonakyds_Sync_Handler {
         ));
 
         // Start background process
-        wp_schedule_single_event(time(), 'jonakyds_background_sync', array($sync_id));
+        wp_schedule_single_event(time(), 'jonakyds_stock_background_sync', array($sync_id));
         spawn_cron();
 
         wp_send_json_success(array('sync_id' => $sync_id));
@@ -64,7 +64,7 @@ class Jonakyds_Sync_Handler {
      * Get sync progress
      */
     public static function get_progress() {
-        check_ajax_referer('jonakyds_ajax_sync', 'nonce');
+        check_ajax_referer('jonakyds_stock_ajax_sync', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
             wp_send_json_error(array('message' => __('Unauthorized', 'jonakyds-stock-sync')));
@@ -76,7 +76,7 @@ class Jonakyds_Sync_Handler {
             wp_send_json_error(array('message' => __('Invalid sync ID', 'jonakyds-stock-sync')));
         }
 
-        $progress = get_transient('jonakyds_sync_progress_' . $sync_id);
+        $progress = get_transient('jonakyds_stock_sync_progress_' . $sync_id);
         
         if ($progress === false) {
             wp_send_json_error(array('message' => __('Progress not found', 'jonakyds-stock-sync')));
@@ -89,23 +89,23 @@ class Jonakyds_Sync_Handler {
      * Get active sync ID
      */
     public static function get_active_sync() {
-        check_ajax_referer('jonakyds_ajax_sync', 'nonce');
+        check_ajax_referer('jonakyds_stock_ajax_sync', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
             wp_send_json_error(array('message' => __('Unauthorized', 'jonakyds-stock-sync')));
         }
 
-        $active_sync_id = get_option('jonakyds_active_sync_id');
+        $active_sync_id = get_option('jonakyds_stock_active_sync_id');
         
         if (!$active_sync_id) {
             wp_send_json_success(array('active' => false));
             return;
         }
 
-        $progress = get_transient('jonakyds_sync_progress_' . $active_sync_id);
+        $progress = get_transient('jonakyds_stock_sync_progress_' . $active_sync_id);
         
         if ($progress === false || $progress['status'] === 'complete' || $progress['status'] === 'error') {
-            delete_option('jonakyds_active_sync_id');
+            delete_option('jonakyds_stock_active_sync_id');
             wp_send_json_success(array('active' => false));
             return;
         }
@@ -135,7 +135,7 @@ class Jonakyds_Sync_Handler {
                 'status' => 'error',
                 'message' => __('CSV URL is not configured.', 'jonakyds-stock-sync')
             ));
-            delete_option('jonakyds_active_sync_id');
+            delete_option('jonakyds_stock_active_sync_id');
             return;
         }
 
@@ -153,7 +153,7 @@ class Jonakyds_Sync_Handler {
                 'status' => 'error',
                 'message' => $csv_data->get_error_message()
             ));
-            delete_option('jonakyds_active_sync_id');
+            delete_option('jonakyds_stock_active_sync_id');
             return;
         }
 
@@ -171,7 +171,7 @@ class Jonakyds_Sync_Handler {
                 'status' => 'error',
                 'message' => $parsed_data->get_error_message()
             ));
-            delete_option('jonakyds_active_sync_id');
+            delete_option('jonakyds_stock_active_sync_id');
             return;
         }
 
@@ -264,7 +264,7 @@ class Jonakyds_Sync_Handler {
         ));
         
         // Clear active sync
-        delete_option('jonakyds_active_sync_id');
+        delete_option('jonakyds_stock_active_sync_id');
 
         // Log the sync
         $result = array(
@@ -277,7 +277,7 @@ class Jonakyds_Sync_Handler {
         Jonakyds_Stock_Sync::log_sync($result);
 
         // Keep progress for 5 minutes
-        set_transient('jonakyds_sync_progress_' . $sync_id, get_transient('jonakyds_sync_progress_' . $sync_id), 300);
+        set_transient('jonakyds_stock_sync_progress_' . $sync_id, get_transient('jonakyds_stock_sync_progress_' . $sync_id), 300);
     }
 
     /**
@@ -291,7 +291,7 @@ class Jonakyds_Sync_Handler {
      * Public update progress method for cron access
      */
     public static function update_progress_public($sync_id, $data) {
-        $current = get_transient('jonakyds_sync_progress_' . $sync_id);
+        $current = get_transient('jonakyds_stock_sync_progress_' . $sync_id);
         
         if ($current === false) {
             $current = array(
@@ -308,15 +308,15 @@ class Jonakyds_Sync_Handler {
         }
 
         $progress = array_merge($current, $data);
-        set_transient('jonakyds_sync_progress_' . $sync_id, $progress, 3600); // 1 hour
+        set_transient('jonakyds_stock_sync_progress_' . $sync_id, $progress, 3600); // 1 hour
     }
 }
 
 // Register AJAX handlers
-add_action('wp_ajax_jonakyds_start_sync', array('Jonakyds_Sync_Handler', 'start_sync'));
-add_action('wp_ajax_jonakyds_get_progress', array('Jonakyds_Sync_Handler', 'get_progress'));
-add_action('wp_ajax_jonakyds_get_active_sync', array('Jonakyds_Sync_Handler', 'get_active_sync'));
+add_action('wp_ajax_jonakyds_stock_start_sync', array('Jonakyds_Sync_Handler', 'start_sync'));
+add_action('wp_ajax_jonakyds_stock_get_sync_progress', array('Jonakyds_Sync_Handler', 'get_progress'));
+add_action('wp_ajax_jonakyds_stock_get_active_sync', array('Jonakyds_Sync_Handler', 'get_active_sync'));
 
 // Register background sync action
-add_action('jonakyds_background_sync', array('Jonakyds_Sync_Handler', 'background_sync'));
+add_action('jonakyds_stock_background_sync', array('Jonakyds_Sync_Handler', 'background_sync'));
 
