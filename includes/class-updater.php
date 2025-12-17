@@ -3,6 +3,7 @@
  * Plugin Updater Class
  *
  * Handles automatic plugin updates from GitHub
+ * Follows WordPress plugin standards
  */
 
 // Exit if accessed directly
@@ -10,277 +11,481 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+// Prevent loading if already loaded (handles duplicate plugin uploads)
+if (class_exists('Jonakyds_Stock_Sync_Updater')) {
+    return;
+}
+
 class Jonakyds_Stock_Sync_Updater {
 
     /**
-     * GitHub username
+     * Plugin file path
+     * 
+     * @var string
      */
-    private $username = 'JonakyDS';
+    private $plugin_file;
 
     /**
-     * GitHub repository name
+     * Plugin slug (folder name)
+     * 
+     * @var string
      */
-    private $repository = 'jonakyds-stock-sync';
+    private $plugin_slug;
 
     /**
-     * Plugin basename
+     * Plugin basename (folder/file.php)
+     * 
+     * @var string
      */
     private $basename;
 
     /**
-     * Plugin data
+     * Plugin data from headers
+     * 
+     * @var array
      */
     private $plugin_data;
 
     /**
-     * GitHub API URL
+     * GitHub username/organization
+     * 
+     * @var string
      */
-    private $github_api_url;
+    private $github_username = 'JonakyDS';
+
+    /**
+     * GitHub repository name
+     * 
+     * @var string
+     */
+    private $github_repository = 'jonakyds-stock-sync';
+
+    /**
+     * Cache key for storing release info
+     * 
+     * @var string
+     */
+    private $cache_key = 'jonakyds_stock_sync_github_release';
+
+    /**
+     * Cache duration in seconds (12 hours)
+     * 
+     * @var int
+     */
+    private $cache_duration = 43200;
 
     /**
      * Constructor
+     * 
+     * @param string $plugin_file Full path to the main plugin file
      */
     public function __construct($plugin_file) {
+        $this->plugin_file = $plugin_file;
         $this->basename = plugin_basename($plugin_file);
-        $this->github_api_url = "https://api.github.com/repos/{$this->username}/{$this->repository}/releases/latest";
+        $this->plugin_slug = dirname($this->basename);
         
-        // Get plugin data
+        // Ensure we have plugin data functions
         if (!function_exists('get_plugin_data')) {
             require_once ABSPATH . 'wp-admin/includes/plugin.php';
         }
         $this->plugin_data = get_plugin_data($plugin_file);
 
-        // Hook into WordPress update system
-        add_filter('pre_set_site_transient_update_plugins', array($this, 'check_for_update'));
-        add_filter('plugins_api', array($this, 'plugin_info'), 10, 3);
-        add_filter('upgrader_post_install', array($this, 'after_install'), 10, 3);
+        // Register hooks
+        $this->init_hooks();
+    }
+
+    /**
+     * Initialize WordPress hooks
+     */
+    private function init_hooks() {
+        // Check for updates
+        add_filter('pre_set_site_transient_update_plugins', array($this, 'check_update'));
         
-        // Clear update cache when requested
-        add_action('admin_init', array($this, 'maybe_clear_cache'));
+        // Provide plugin information
+        add_filter('plugins_api', array($this, 'plugins_api_filter'), 10, 3);
+        
+        // Handle post-install (rename directory from GitHub format)
+        add_filter('upgrader_post_install', array($this, 'post_install'), 10, 3);
+        
+        // Add action link to check for updates
+        add_filter('plugin_action_links_' . $this->basename, array($this, 'plugin_action_links'));
+        
+        // Handle manual update check
+        add_action('admin_init', array($this, 'handle_manual_update_check'));
+        
+        // Show admin notice after update check
+        add_action('admin_notices', array($this, 'admin_notices'));
     }
 
     /**
      * Check for plugin updates
+     * 
+     * @param object $transient WordPress update transient
+     * @return object Modified transient
      */
-    public function check_for_update($transient) {
+    public function check_update($transient) {
         if (empty($transient->checked)) {
             return $transient;
         }
 
-        // Get release info from GitHub
-        $release_info = $this->get_release_info();
+        // Get remote version info
+        $remote_info = $this->get_remote_info();
 
-        if ($release_info && version_compare($this->plugin_data['Version'], $release_info->version, '<')) {
-            $plugin_data = array(
-                'slug' => dirname($this->basename),
-                'new_version' => $release_info->version,
-                'url' => $this->plugin_data['PluginURI'],
-                'package' => $release_info->download_url,
-                'tested' => $release_info->tested,
-                'requires' => $release_info->requires,
-                'requires_php' => $release_info->requires_php,
+        if (!$remote_info) {
+            return $transient;
+        }
+
+        // Compare versions
+        $current_version = $this->plugin_data['Version'];
+        $remote_version = $remote_info['version'];
+
+        if (version_compare($current_version, $remote_version, '<')) {
+            $transient->response[$this->basename] = (object) array(
+                'slug'         => $this->plugin_slug,
+                'plugin'       => $this->basename,
+                'new_version'  => $remote_version,
+                'url'          => $remote_info['homepage'],
+                'package'      => $remote_info['download_url'],
+                'icons'        => array(),
+                'banners'      => array(),
+                'tested'       => $remote_info['tested'],
+                'requires'     => $remote_info['requires'],
+                'requires_php' => $remote_info['requires_php'],
             );
-
-            $transient->response[$this->basename] = (object) $plugin_data;
+        } else {
+            // No update available - add to no_update to show "up to date"
+            $transient->no_update[$this->basename] = (object) array(
+                'slug'         => $this->plugin_slug,
+                'plugin'       => $this->basename,
+                'new_version'  => $current_version,
+                'url'          => $remote_info['homepage'],
+                'package'      => '',
+            );
         }
 
         return $transient;
     }
 
     /**
-     * Get release information from GitHub
+     * Get remote plugin information from GitHub
+     * 
+     * @param bool $force_check Force check, bypassing cache
+     * @return array|false Remote info or false on failure
      */
-    private function get_release_info() {
-        // Check cache first (24 hours)
-        $cache_key = 'jonakyds_stock_sync_release_info';
-        $cached = get_transient($cache_key);
-        
-        if ($cached !== false) {
-            return $cached;
+    private function get_remote_info($force_check = false) {
+        // Check cache first
+        if (!$force_check) {
+            $cached = get_transient($this->cache_key);
+            if ($cached !== false) {
+                return $cached;
+            }
         }
 
-        // Fetch from GitHub API
-        $response = wp_remote_get($this->github_api_url, array(
-            'timeout' => 15,
+        // Build GitHub API URL
+        $api_url = sprintf(
+            'https://api.github.com/repos/%s/%s/releases/latest',
+            $this->github_username,
+            $this->github_repository
+        );
+
+        // Make API request
+        $response = wp_remote_get($api_url, array(
+            'timeout' => 10,
             'headers' => array(
-                'Accept' => 'application/vnd.github.v3+json',
-            )
+                'Accept'     => 'application/vnd.github.v3+json',
+                'User-Agent' => 'WordPress/' . get_bloginfo('version') . '; ' . home_url(),
+            ),
         ));
 
+        // Handle errors
         if (is_wp_error($response)) {
             return false;
         }
 
-        $body = wp_remote_retrieve_body($response);
-        $data = json_decode($body);
-
-        if (empty($data) || !isset($data->tag_name)) {
+        $response_code = wp_remote_retrieve_response_code($response);
+        if ($response_code !== 200) {
             return false;
         }
 
-        // Parse version from tag (remove 'v' prefix if present)
-        $version = ltrim($data->tag_name, 'v');
+        // Parse response
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body, true);
 
-        // Get additional info from release body
-        $description = isset($data->body) ? $data->body : '';
-        
-        // Try to extract WordPress compatibility info from release notes
-        $requires = $this->plugin_data['RequiresWP'] ?: '5.0';
-        $tested = $this->plugin_data['Tested up to'] ?: get_bloginfo('version');
-        $requires_php = $this->plugin_data['RequiresPHP'] ?: '7.2';
-        
-        // Look for compatibility info in release notes
-        if (preg_match('/Tested up to:?\s*(\d+\.\d+(?:\.\d+)?)/i', $description, $matches)) {
-            $tested = $matches[1];
-        }
-        if (preg_match('/Requires at least:?\s*(\d+\.\d+(?:\.\d+)?)/i', $description, $matches)) {
-            $requires = $matches[1];
-        }
-        if (preg_match('/Requires PHP:?\s*(\d+\.\d+(?:\.\d+)?)/i', $description, $matches)) {
-            $requires_php = $matches[1];
+        if (empty($data) || !isset($data['tag_name'])) {
+            return false;
         }
 
-        $release_info = (object) array(
-            'version' => $version,
-            'download_url' => $data->zipball_url,
-            'body' => $description,
-            'requires' => $requires,
-            'tested' => $tested,
-            'requires_php' => $requires_php,
+        // Extract version (remove 'v' prefix if present)
+        $version = ltrim($data['tag_name'], 'v');
+
+        // Find the zip asset
+        $download_url = '';
+        if (!empty($data['assets'])) {
+            foreach ($data['assets'] as $asset) {
+                if (isset($asset['name']) && substr($asset['name'], -4) === '.zip') {
+                    $download_url = $asset['browser_download_url'];
+                    break;
+                }
+            }
+        }
+
+        // Fallback to zipball URL if no asset found
+        if (empty($download_url) && !empty($data['zipball_url'])) {
+            $download_url = $data['zipball_url'];
+        }
+
+        if (empty($download_url)) {
+            return false;
+        }
+
+        // Build info array
+        $info = array(
+            'version'      => $version,
+            'download_url' => $download_url,
+            'homepage'     => $this->plugin_data['PluginURI'] ?: "https://github.com/{$this->github_username}/{$this->github_repository}",
+            'requires'     => '5.0',
+            'tested'       => get_bloginfo('version'),
+            'requires_php' => '7.2',
+            'changelog'    => isset($data['body']) ? $data['body'] : '',
+            'last_updated' => isset($data['published_at']) ? $data['published_at'] : '',
         );
 
-        // Cache for 24 hours
-        set_transient($cache_key, $release_info, DAY_IN_SECONDS);
+        // Try to extract compatibility info from release notes
+        if (!empty($data['body'])) {
+            $body_text = $data['body'];
+            
+            if (preg_match('/Tested up to:?\s*(\d+\.\d+(?:\.\d+)?)/i', $body_text, $matches)) {
+                $info['tested'] = $matches[1];
+            }
+            if (preg_match('/Requires at least:?\s*(\d+\.\d+(?:\.\d+)?)/i', $body_text, $matches)) {
+                $info['requires'] = $matches[1];
+            }
+            if (preg_match('/Requires PHP:?\s*(\d+\.\d+(?:\.\d+)?)/i', $body_text, $matches)) {
+                $info['requires_php'] = $matches[1];
+            }
+        }
 
-        return $release_info;
+        // Cache the result
+        set_transient($this->cache_key, $info, $this->cache_duration);
+
+        return $info;
     }
 
     /**
-     * Provide plugin information for the update screen
+     * Filter the plugins_api to provide plugin information
+     * 
+     * @param false|object|array $result The result object or array
+     * @param string $action The type of information being requested
+     * @param object $args Plugin API arguments
+     * @return false|object Plugin info or false
      */
-    public function plugin_info($false, $action, $args) {
+    public function plugins_api_filter($result, $action, $args) {
+        // Only handle plugin_information action
         if ($action !== 'plugin_information') {
-            return $false;
+            return $result;
         }
 
-        if (!isset($args->slug) || $args->slug !== dirname($this->basename)) {
-            return $false;
+        // Check if this is our plugin
+        if (!isset($args->slug) || $args->slug !== $this->plugin_slug) {
+            return $result;
         }
 
-        $release_info = $this->get_release_info();
+        // Get remote info
+        $remote_info = $this->get_remote_info();
 
-        if (!$release_info) {
-            return $false;
+        if (!$remote_info) {
+            return $result;
         }
 
-        $plugin_info = array(
-            'name' => $this->plugin_data['Name'],
-            'slug' => dirname($this->basename),
-            'version' => $release_info->version,
-            'author' => $this->plugin_data['Author'],
-            'author_profile' => $this->plugin_data['AuthorURI'],
-            'homepage' => $this->plugin_data['PluginURI'],
-            'requires' => $release_info->requires,
-            'tested' => $release_info->tested,
-            'requires_php' => $release_info->requires_php,
-            'download_link' => $release_info->download_url,
-            'sections' => array(
-                'description' => $this->plugin_data['Description'],
-                'changelog' => $this->parse_changelog($release_info->body),
-            ),
-            'banners' => array(),
+        // Build plugin info object
+        $plugin_info = new stdClass();
+        $plugin_info->name           = $this->plugin_data['Name'];
+        $plugin_info->slug           = $this->plugin_slug;
+        $plugin_info->version        = $remote_info['version'];
+        $plugin_info->author         = $this->plugin_data['Author'];
+        $plugin_info->author_profile = $this->plugin_data['AuthorURI'];
+        $plugin_info->homepage       = $remote_info['homepage'];
+        $plugin_info->requires       = $remote_info['requires'];
+        $plugin_info->tested         = $remote_info['tested'];
+        $plugin_info->requires_php   = $remote_info['requires_php'];
+        $plugin_info->downloaded     = 0;
+        $plugin_info->last_updated   = $remote_info['last_updated'];
+        $plugin_info->download_link  = $remote_info['download_url'];
+        
+        $plugin_info->sections = array(
+            'description' => $this->plugin_data['Description'],
+            'changelog'   => $this->format_changelog($remote_info['changelog']),
         );
 
-        return (object) $plugin_info;
+        $plugin_info->banners = array();
+
+        return $plugin_info;
     }
 
     /**
-     * Parse changelog from release notes
+     * Format changelog from markdown to HTML
+     * 
+     * @param string $changelog Raw changelog text
+     * @return string Formatted HTML
      */
-    private function parse_changelog($body) {
-        if (empty($body)) {
-            return __('No changelog available.', 'jonakyds-stock-sync');
+    private function format_changelog($changelog) {
+        if (empty($changelog)) {
+            return '<p>' . __('No changelog available.', 'jonakyds-stock-sync') . '</p>';
         }
 
-        // Convert markdown to HTML (basic conversion)
-        $changelog = wpautop($body);
-        $changelog = str_replace('###', '<h3>', $changelog);
-        $changelog = str_replace('##', '<h2>', $changelog);
-        $changelog = preg_replace('/^\* /m', '• ', $changelog);
+        // Basic markdown to HTML conversion
+        $html = esc_html($changelog);
+        $html = nl2br($html);
+        
+        // Convert markdown headers
+        $html = preg_replace('/^### (.+)$/m', '<h4>$1</h4>', $html);
+        $html = preg_replace('/^## (.+)$/m', '<h3>$1</h3>', $html);
+        $html = preg_replace('/^# (.+)$/m', '<h2>$1</h2>', $html);
+        
+        // Convert markdown lists
+        $html = preg_replace('/^[\*\-] (.+)$/m', '<li>$1</li>', $html);
+        $html = preg_replace('/(<li>.+<\/li>\n?)+/', '<ul>$0</ul>', $html);
 
-        return $changelog;
+        return $html;
     }
 
     /**
-     * Perform additional actions after installation
+     * Handle post-installation tasks
+     * 
+     * This is crucial for GitHub downloads which extract to a differently-named folder
+     * 
+     * @param bool $response Installation response
+     * @param array $hook_extra Extra hook arguments
+     * @param array $result Installation result
+     * @return bool|WP_Error
      */
-    public function after_install($response, $hook_extra, $result) {
+    public function post_install($response, $hook_extra, $result) {
         global $wp_filesystem;
 
-        // Get plugin directory
-        $install_directory = plugin_dir_path(WP_PLUGIN_DIR . '/' . $this->basename);
+        // Only process our plugin updates
+        if (!isset($hook_extra['plugin'])) {
+            return $response;
+        }
         
-        // Move files from GitHub's extracted subdirectory to plugin directory
-        if (isset($result['destination'])) {
-            $remote_destination = $result['destination'];
-            
-            // GitHub extracts to a subdirectory like "username-repo-hash"
-            $remote_source = $remote_destination;
-            
-            // Find the actual source directory
-            $source_files = array_values($wp_filesystem->dirlist($remote_source));
-            if (!empty($source_files)) {
-                $source_name = $source_files[0]['name'];
-                $remote_source = trailingslashit($remote_source) . $source_name;
-            }
-            
-            // Move files to the correct location
-            if ($wp_filesystem->exists($remote_source)) {
-                $wp_filesystem->move($remote_source, $install_directory, true);
-            }
+        // Check if this is our plugin being updated
+        if ($hook_extra['plugin'] !== $this->basename) {
+            return $response;
         }
 
-        // Clear the update cache
-        delete_transient('jonakyds_stock_sync_release_info');
+        // Initialize filesystem if needed
+        if (!$wp_filesystem) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+            WP_Filesystem();
+        }
+
+        // Get the installed location
+        $install_dir = $result['destination'];
+        
+        // Get the proper plugin directory name
+        $proper_dir = WP_PLUGIN_DIR . '/' . $this->plugin_slug;
+
+        // If the installed directory is different from expected, rename it
+        if ($install_dir !== $proper_dir && $wp_filesystem->exists($install_dir)) {
+            // Remove the old directory if it exists
+            if ($wp_filesystem->exists($proper_dir)) {
+                $wp_filesystem->delete($proper_dir, true);
+            }
+
+            // Move to the correct location
+            $wp_filesystem->move($install_dir, $proper_dir, true);
+            
+            // Update result destination
+            $result['destination'] = $proper_dir;
+            $result['destination_name'] = $this->plugin_slug;
+        }
+
+        // Clear caches
+        delete_transient($this->cache_key);
+        delete_site_transient('update_plugins');
+        wp_clean_plugins_cache();
 
         return $response;
     }
 
     /**
-     * Maybe clear the update cache
+     * Add plugin action links
+     * 
+     * @param array $links Existing links
+     * @return array Modified links
      */
-    public function maybe_clear_cache() {
-        if (isset($_GET['jonakyds_clear_update_cache']) && current_user_can('update_plugins')) {
-            delete_transient('jonakyds_stock_sync_release_info');
-            delete_site_transient('update_plugins');
-            wp_redirect(admin_url('plugins.php'));
-            exit;
-        }
-    }
-
-    /**
-     * Get the GitHub username
-     */
-    public function get_username() {
-        return $this->username;
-    }
-
-    /**
-     * Get the repository name
-     */
-    public function get_repository() {
-        return $this->repository;
-    }
-
-    /**
-     * Set GitHub repository (for customization)
-     */
-    public function set_repository($username, $repository) {
-        $this->username = $username;
-        $this->repository = $repository;
-        $this->github_api_url = "https://api.github.com/repos/{$username}/{$repository}/releases/latest";
+    public function plugin_action_links($links) {
+        $check_link = sprintf(
+            '<a href="%s">%s</a>',
+            wp_nonce_url(
+                add_query_arg('jonakyds_check_update', '1', admin_url('plugins.php')),
+                'jonakyds_check_update'
+            ),
+            __('Check for updates', 'jonakyds-stock-sync')
+        );
         
-        // Clear cache when repository changes
-        delete_transient('jonakyds_stock_sync_release_info');
+        array_unshift($links, $check_link);
+        
+        return $links;
+    }
+
+    /**
+     * Handle manual update check request
+     */
+    public function handle_manual_update_check() {
+        if (!isset($_GET['jonakyds_check_update'])) {
+            return;
+        }
+
+        if (!current_user_can('update_plugins')) {
+            return;
+        }
+
+        // Verify nonce
+        if (!isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], 'jonakyds_check_update')) {
+            return;
+        }
+
+        // Clear cache and force check
+        delete_transient($this->cache_key);
+        delete_site_transient('update_plugins');
+
+        // Force WordPress to check for updates
+        wp_clean_plugins_cache(true);
+
+        // Redirect with message
+        wp_safe_redirect(add_query_arg(
+            array(
+                'jonakyds_update_checked' => '1',
+            ),
+            admin_url('plugins.php')
+        ));
+        exit;
+    }
+
+    /**
+     * Show admin notices
+     */
+    public function admin_notices() {
+        if (!isset($_GET['jonakyds_update_checked'])) {
+            return;
+        }
+
+        $remote_info = $this->get_remote_info(true);
+        $current_version = $this->plugin_data['Version'];
+
+        if ($remote_info && version_compare($current_version, $remote_info['version'], '<')) {
+            $message = sprintf(
+                __('A new version of Stock Sync is available! Version %s is available (you have %s).', 'jonakyds-stock-sync'),
+                '<strong>' . esc_html($remote_info['version']) . '</strong>',
+                '<strong>' . esc_html($current_version) . '</strong>'
+            );
+            echo '<div class="notice notice-info is-dismissible"><p>' . $message . '</p></div>';
+        } else {
+            $message = sprintf(
+                __('Stock Sync is up to date! You are running version %s.', 'jonakyds-stock-sync'),
+                '<strong>' . esc_html($current_version) . '</strong>'
+            );
+            echo '<div class="notice notice-success is-dismissible"><p>' . $message . '</p></div>';
+        }
     }
 }
