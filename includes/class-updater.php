@@ -107,6 +107,9 @@ class Jonakyds_Stock_Sync_Updater {
         // Handle source selection (rename directory from GitHub format BEFORE install)
         add_filter('upgrader_source_selection', array($this, 'fix_source_dir'), 10, 4);
         
+        // Clear caches after plugin update completes
+        add_action('upgrader_process_complete', array($this, 'after_update'), 10, 2);
+        
         // Add action link to check for updates
         add_filter('plugin_action_links_' . $this->basename, array($this, 'plugin_action_links'));
         
@@ -392,6 +395,43 @@ class Jonakyds_Stock_Sync_Updater {
 
         // If rename failed, return original (WordPress will handle it)
         return $source;
+    }
+
+    /**
+     * Clear caches after plugin update completes
+     * 
+     * @param WP_Upgrader $upgrader WP_Upgrader instance
+     * @param array $options Update options
+     */
+    public function after_update($upgrader, $options) {
+        // Check if this is a plugin update
+        if ($options['action'] !== 'update' || $options['type'] !== 'plugin') {
+            return;
+        }
+
+        // Check if our plugin was updated
+        $dominated = false;
+        
+        if (isset($options['plugins']) && is_array($options['plugins'])) {
+            // Bulk update
+            $our_plugin_updated = in_array($this->basename, $options['plugins'], true);
+        } elseif (isset($options['plugin'])) {
+            // Single plugin update
+            $our_plugin_updated = ($options['plugin'] === $this->basename);
+        } else {
+            $our_plugin_updated = false;
+        }
+
+        if ($our_plugin_updated) {
+            // Clear our GitHub release cache
+            delete_transient($this->cache_key);
+            
+            // Clear WordPress plugin update transient
+            delete_site_transient('update_plugins');
+            
+            // Clear plugin cache
+            wp_clean_plugins_cache(true);
+        }
     }
 
     /**
