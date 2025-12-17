@@ -104,8 +104,8 @@ class Jonakyds_Stock_Sync_Updater {
         // Provide plugin information
         add_filter('plugins_api', array($this, 'plugins_api_filter'), 10, 3);
         
-        // Handle post-install (rename directory from GitHub format)
-        add_filter('upgrader_post_install', array($this, 'post_install'), 10, 3);
+        // Handle source selection (rename directory from GitHub format BEFORE install)
+        add_filter('upgrader_source_selection', array($this, 'fix_source_dir'), 10, 4);
         
         // Add action link to check for updates
         add_filter('plugin_action_links_' . $this->basename, array($this, 'plugin_action_links'));
@@ -350,61 +350,48 @@ class Jonakyds_Stock_Sync_Updater {
     }
 
     /**
-     * Handle post-installation tasks
+     * Fix the source directory name before installation
      * 
-     * This is crucial for GitHub downloads which extract to a differently-named folder
+     * GitHub zip files extract to folders like "user-repo-hash" instead of just "repo"
+     * This filter renames the source folder BEFORE WordPress moves it to plugins directory
      * 
-     * @param bool $response Installation response
-     * @param array $hook_extra Extra hook arguments
-     * @param array $result Installation result
-     * @return bool|WP_Error
+     * @param string $source        File source location
+     * @param string $remote_source Remote file source location
+     * @param WP_Upgrader $upgrader WP_Upgrader instance
+     * @param array $hook_extra     Extra arguments passed to hooked filters
+     * @return string|WP_Error
      */
-    public function post_install($response, $hook_extra, $result) {
+    public function fix_source_dir($source, $remote_source, $upgrader, $hook_extra) {
         global $wp_filesystem;
 
-        // Only process our plugin updates
+        // Only process plugin updates
         if (!isset($hook_extra['plugin'])) {
-            return $response;
+            return $source;
         }
-        
-        // Check if this is our plugin being updated
+
+        // Only process our plugin
         if ($hook_extra['plugin'] !== $this->basename) {
-            return $response;
+            return $source;
         }
 
-        // Initialize filesystem if needed
-        if (!$wp_filesystem) {
-            require_once ABSPATH . 'wp-admin/includes/file.php';
-            WP_Filesystem();
-        }
-
-        // Get the installed location
-        $install_dir = $result['destination'];
+        // Check if the source folder name is incorrect
+        $source_name = basename(untrailingslashit($source));
         
-        // Get the proper plugin directory name
-        $proper_dir = WP_PLUGIN_DIR . '/' . $this->plugin_slug;
-
-        // If the installed directory is different from expected, rename it
-        if ($install_dir !== $proper_dir && $wp_filesystem->exists($install_dir)) {
-            // Remove the old directory if it exists
-            if ($wp_filesystem->exists($proper_dir)) {
-                $wp_filesystem->delete($proper_dir, true);
-            }
-
-            // Move to the correct location
-            $wp_filesystem->move($install_dir, $proper_dir, true);
-            
-            // Update result destination
-            $result['destination'] = $proper_dir;
-            $result['destination_name'] = $this->plugin_slug;
+        // If source already has correct name, return as is
+        if ($source_name === $this->plugin_slug) {
+            return $source;
         }
 
-        // Clear caches
-        delete_transient($this->cache_key);
-        delete_site_transient('update_plugins');
-        wp_clean_plugins_cache();
+        // Build the new source path with correct folder name
+        $new_source = trailingslashit(dirname(untrailingslashit($source))) . $this->plugin_slug . '/';
 
-        return $response;
+        // Rename the folder
+        if ($wp_filesystem->move($source, $new_source, true)) {
+            return $new_source;
+        }
+
+        // If rename failed, return original (WordPress will handle it)
+        return $source;
     }
 
     /**
